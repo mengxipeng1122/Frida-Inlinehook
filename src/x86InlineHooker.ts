@@ -50,7 +50,6 @@ export class X86InlineHooker extends InlineHooker{
             cnt ++ ;
         }
         woffset = writer.offset;
-        console.log(`thumb reloc write length ${woffset}`)
         let orig_bytes = readMemoryArrayBuffer(from, offset);
         return [woffset, orig_bytes]
     }

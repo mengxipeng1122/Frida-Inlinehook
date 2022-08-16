@@ -9,15 +9,23 @@ export abstract class InlineHooker
     trampoline_ptr      : NativePointer;
     hook_ptr            : NativePointer;
     para1               : NativePointer;
-    constructor(hook_ptr:NativePointer, trampoline_ptr:NativePointer, hook_fun_ptr:NativePointer, para1:NativePointer){
+    constructor(
+        hook_ptr:NativePointer, 
+        hook_fun_ptr:NativePointer, 
+        para1:NativePointer,
+        trampoline_ptr?:NativePointer, 
+        ){
         this.hook_ptr       = hook_ptr;
-        this.trampoline_ptr = trampoline_ptr;
         this.hook_fun_ptr   = hook_fun_ptr;
         this.para1          = para1;
+        if(trampoline_ptr!=undefined) this.trampoline_ptr = trampoline_ptr;
+        else {
+            this.trampoline_ptr = InlineHooker.allocTrampolineMem(this.getTrampolineCodeSize())
+        }
     }
 
     static max_code_cnt= 5;
-    static max_trampoline_len = 0x200;
+    static max_trampoline_len = 0x100;
 
     putPrecode(p:NativePointer):[number, NativePointer] {
         throw new Error(`please implement putPrecode function ${JSON.stringify(this)}`);
@@ -41,6 +49,10 @@ export abstract class InlineHooker
 
     getJumpInstLen(from:NativePointer, to:NativePointer):number{
         throw new Error(`please implement getJumpInstLen function ${JSON.stringify(this)}`);
+    }
+
+    getTrampolineCodeSize():number{
+        return InlineHooker.max_trampoline_len;
     }
 
     run():[number, ArrayBuffer]{
@@ -70,15 +82,48 @@ export abstract class InlineHooker
         InlineHooker.all_inline_hooks[this.hook_ptr.toString()]= {
             hook_ptr        : this.hook_ptr,
             hook_fun_ptr    : this.hook_fun_ptr,
+            trampoline_ptr  : this.trampoline_ptr,
             origin_bytes    : origin_bytes,
         }
         return [offset, origin_bytes];
+    }
+
+    static trampoline_pages_info : {
+        pages: NativePointer[],
+        last_page_idx : number,
+        last_page_offset: number,
+    } = {
+        pages:[],
+        last_page_idx:-1,
+        last_page_offset:-1,
+    };
+
+    static allocTrampolineMem(sz:number):NativePointer {
+        let info = InlineHooker.trampoline_pages_info;
+        let p:NativePointer|null=null;
+        if(info.last_page_idx>=0){
+            if(info.last_page_idx<0) throw new Error(`info is not consistent ${JSON.stringify(info)}`);
+            if(info.last_page_offset<0) throw new Error(`info is not consistent ${JSON.stringify(info)}`);
+            if(info.last_page_offset+sz<=Process.pageSize) {
+                p = info.pages[info.last_page_idx].add(info.last_page_offset);
+                info.last_page_offset+=sz;
+            }
+        }
+        if(p==null) {
+            info.pages.push(Memory.alloc(Process.pageSize));
+            info.last_page_idx = info.pages.length-1;
+            p = info.pages[info.last_page_idx];
+            info.last_page_offset = sz;
+        }
+        if(p==null) throw new Error(`alloc trapoline failed`);
+        return p;
     }
 
     static all_inline_hooks:{[key:string]:{
             origin_bytes    :   ArrayBuffer,
             hook_ptr        :   NativePointer,
             hook_fun_ptr    :   NativePointer,
+            trampoline_ptr  :   NativePointer,
     }} = { };
 
     static hasHooked = (hook_ptr:NativePointer):boolean=>{
@@ -89,14 +134,12 @@ export abstract class InlineHooker
         let hooks = InlineHooker.all_inline_hooks;
         Object.keys(hooks).forEach(k=>{
             let v = hooks[k]
-            if (v.origin_bytes!=null){
-                let bs = v.origin_bytes;
-                let p = v.hook_ptr;
-                let sz = bs.byteLength;
-                Memory.patchCode(p,sz, code=>{
-                    code.writeByteArray(bs)
-                })
-            }
+            let bs = v.origin_bytes;
+            let p = v.hook_ptr;
+            let sz = bs.byteLength;
+            Memory.patchCode(p,sz, code=>{
+                code.writeByteArray(bs)
+            })
         })
     }
 

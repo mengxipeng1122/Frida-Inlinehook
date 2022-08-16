@@ -482,10 +482,6 @@ const relocateInstructionInArm = (target_addr:NativePointer, orig_instructions:N
 
 export class ArmInlineHooker extends InlineHooker{
 
-    constructor(hook_ptr:NativePointer, trampoline_ptr:NativePointer, hook_fun_ptr:NativePointer, para1:NativePointer){
-        super(hook_ptr, trampoline_ptr, hook_fun_ptr,para1)
-    }
-
     private _isThumbMode():boolean {
         return this.hook_ptr.and(1).toUInt32()==1;
     }
@@ -551,9 +547,8 @@ export class ArmInlineHooker extends InlineHooker{
         let woffset = 0;
         while(offset<sz){
             let inst = Instruction.parse(from.add(offset)) as ArmInstruction;
-            let instbs = from.add(offset).readByteArray(inst.size);
-            if(instbs==null) throw new Error(`can not read instruction bytes form ${from}`)
             let pc = from.add(offset).and(~1);
+            //let instbs = readMemoryArrayBuffer(from, offset);
             //if(inst.size==4 && inst.mnemonic =='bl' && inst.operands[0].type=='imm') {
             //    // handle bl, imm thumb32 
             //    const writer = new ThumbWriter(to.add(woffset));
@@ -572,7 +567,7 @@ export class ArmInlineHooker extends InlineHooker{
             else if(inst.size==2) { // thumb16
                 woffset += relocateInstructionInThumb16(pc.add(4), pc.readU16(), to.add(woffset));
             }
-            else if(inst.size==4){ // thumb32
+            else if(inst.size==4) { // thumb32
                 woffset += relocateInstructionInThumb32(pc.add(4), pc.readU16(), pc.add(2).readU16(), to.add(woffset));
             }
             else{
@@ -595,21 +590,7 @@ export class ArmInlineHooker extends InlineHooker{
     }
 
     putJumpCode(from:NativePointer, to:NativePointer):number {
-        if(this.hook_ptr.and(1).toUInt32()==0){
-            let code = from ;
-            const writer = new ArmWriter(code);
-            if(this.canBranchDirectlyBetween(from, to)){
-                writer.putBImm(to);
-                writer.flush();
-                return writer.offset;
-            }
-            else{
-                writer.putLdrRegRegOffset('pc','pc',0);
-                writer.flush();
-                return writer.offset;
-            }
-        }
-        else{
+        if(this._isThumbMode()){
             let code = from.and(~1);
             const writer = new ThumbWriter(code);
             if(this.canBranchDirectlyBetween(from,to)){
@@ -625,7 +606,22 @@ export class ArmInlineHooker extends InlineHooker{
                     writer.putLdrRegRegOffset('pc','pc',2)
                 }
                 writer.flush()
-                from.add(writer.offset).writePointer(to.or(1))
+                code.add(writer.offset).writePointer(to.or(1))
+                return writer.offset+Process.pointerSize;
+            }
+        }
+        else {
+            let code = from;
+            const writer = new ArmWriter(code);
+            if(this.canBranchDirectlyBetween(from, to)){
+                writer.putBImm(to);
+                writer.flush();
+                return writer.offset;
+            }
+            else{
+                writer.putLdrRegRegOffset('pc','pc',0);
+                writer.flush();
+                from.add(writer.offset).writePointer(to)
                 return writer.offset+Process.pointerSize;
             }
         }
@@ -634,22 +630,20 @@ export class ArmInlineHooker extends InlineHooker{
 
 export let getRegs = (sp:NativePointer) =>{
     return  {
- 'r0'       :sp.add(Process.pointerSize*7 ).readPointer(),
- 'r1'       :sp.add(Process.pointerSize*8 ).readPointer(),
- 'r2'       :sp.add(Process.pointerSize*9 ).readPointer(),
- 'r3'       :sp.add(Process.pointerSize*10).readPointer(),
- 'r4'       :sp.add(Process.pointerSize*11).readPointer(),
- 'r5'       :sp.add(Process.pointerSize*12).readPointer(),
- 'r6'       :sp.add(Process.pointerSize*13).readPointer(),
- 'r7'       :sp.add(Process.pointerSize*14).readPointer(),
-
- 'r8'       :sp.add(Process.pointerSize*1 ).readPointer(),
- 'r9'       :sp.add(Process.pointerSize*2 ).readPointer(),
- 'r10'      :sp.add(Process.pointerSize*3 ).readPointer(),
- 'r11'      :sp.add(Process.pointerSize*4 ).readPointer(),
- 'r12'      :sp.add(Process.pointerSize*5 ).readPointer(),
- 'r14'      :sp.add(Process.pointerSize*6 ).readPointer(),
-
-'apsr'      :sp.add(Process.pointerSize*0 ).readPointer(),
+        r0      : sp.add(Process.pointerSize*7 ).readPointer(),
+        r1      : sp.add(Process.pointerSize*8 ).readPointer(),
+        r2      : sp.add(Process.pointerSize*9 ).readPointer(),
+        r3      : sp.add(Process.pointerSize*10).readPointer(),
+        r4      : sp.add(Process.pointerSize*11).readPointer(),
+        r5      : sp.add(Process.pointerSize*12).readPointer(),
+        r6      : sp.add(Process.pointerSize*13).readPointer(),
+        r7      : sp.add(Process.pointerSize*14).readPointer(),
+        r8      : sp.add(Process.pointerSize*1 ).readPointer(),
+        r9      : sp.add(Process.pointerSize*2 ).readPointer(),
+        r10     : sp.add(Process.pointerSize*3 ).readPointer(),
+        r11     : sp.add(Process.pointerSize*4 ).readPointer(),
+        r12     : sp.add(Process.pointerSize*5 ).readPointer(),
+        r14     : sp.add(Process.pointerSize*6 ).readPointer(),
+        apsr    : sp.add(Process.pointerSize*0 ).readPointer(),
     };
 }
