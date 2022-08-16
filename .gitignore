@@ -1,0 +1,13 @@
+
+node_modules
+__pycache__
+
+*.swp
+_agent.js
+
+\libs
+\obj
+\soinfos
+
+exe_x86
+exe_x64
