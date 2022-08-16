@@ -1,7 +1,7 @@
 
 'use strict';
 
-import { dumpMemory } from "../commutils";
+import { dumpMemory, readMemoryArrayBuffer } from "../commutils";
 import { InlineHooker } from "./InlineHooker";
 
 const ALIGN_PC = (pc:NativePointer)=>(pc.and(0xFFFFFFFC));
@@ -13,7 +13,7 @@ enum INSTRUCTION_TYPE {
     B2_THUMB16,
     // BX PC
     BX_THUMB16,
-    // ADD <Rdn>, PC (Rd != PC, Rn != PC) 在对ADD进行修正时，采用了替换PC为Rr的方法，当Rd也为PC时，由于之前更改了Rr的值，可能会影响跳转后的正常功能。
+    // ADD <Rdn>, PC (Rd != PC, Rn != PC) 
     ADD_THUMB16,
     // MOV Rd, PC
     MOV_THUMB16,
@@ -53,7 +53,7 @@ enum INSTRUCTION_TYPE {
     B_ARM,
     // BX PC
     BX_ARM,
-    // ADD Rd, PC, Rm (Rd != PC, Rm != PC) 在对ADD进行修正时，采用了替换PC为Rr的方法，当Rd也为PC时，由于之前更改了Rr的值，可能会影响跳转后的正常功能;实际汇编中没有发现Rm也为PC的情况，故未做处理。
+    // ADD Rd, PC, Rm (Rd != PC, Rm != PC)
     ADD_ARM,
     // ADR Rd, <label>
     ADR1_ARM,
@@ -68,51 +68,50 @@ enum INSTRUCTION_TYPE {
 };
 
 const getTypeInThumb16 = (instruction:number):INSTRUCTION_TYPE=> {
-    if ((instruction & 0xF000) == 0xD000) { return INSTRUCTION_TYPE.B1_THUMB16;     }
-    if ((instruction & 0xF800) == 0xE000) { return INSTRUCTION_TYPE.B2_THUMB16;     }
-    if ((instruction & 0xFFF8) == 0x4778) { return INSTRUCTION_TYPE.BX_THUMB16;     }
-    if ((instruction & 0xFF78) == 0x4478) { return INSTRUCTION_TYPE.ADD_THUMB16;    }
-    if ((instruction & 0xFF78) == 0x4678) { return INSTRUCTION_TYPE.MOV_THUMB16;    }
-    if ((instruction & 0xF800) == 0xA000) { return INSTRUCTION_TYPE.ADR_THUMB16;    }
-    if ((instruction & 0xF800) == 0x4800) { return INSTRUCTION_TYPE.LDR_THUMB16;    }
-    if ((instruction & 0xF500) == 0xB100) { return INSTRUCTION_TYPE.CB_THUMB16;     }
+    let p = ptr(instruction);
+    if (p.and(0xF000).compare(0xD000)==0) return INSTRUCTION_TYPE.B1_THUMB16; 
+    if (p.and(0xF800).compare(0xE000)==0) return INSTRUCTION_TYPE.B2_THUMB16; 
+    if (p.and(0xFFF8).compare(0x4778)==0) return INSTRUCTION_TYPE.BX_THUMB16; 
+    if (p.and(0xFF78).compare(0x4478)==0) return INSTRUCTION_TYPE.ADD_THUMB16;
+    if (p.and(0xFF78).compare(0x4678)==0) return INSTRUCTION_TYPE.MOV_THUMB16;
+    if (p.and(0xF800).compare(0xA000)==0) return INSTRUCTION_TYPE.ADR_THUMB16;
+    if (p.and(0xF800).compare(0x4800)==0) return INSTRUCTION_TYPE.LDR_THUMB16;
+    if (p.and(0xF500).compare(0xB100)==0) return INSTRUCTION_TYPE.CB_THUMB16; 
     return INSTRUCTION_TYPE.UNDEFINE;
 }
 
 const getTypeInThumb32 = (instruction:number):INSTRUCTION_TYPE =>{
-    // `special control operations`(eg: `DMB.W ISH`)
-    // must be placed before `if ((instruction & 0xF800D000) == 0xF0008000)`
-    if (((instruction & 0xFFF0D000)>>>0) == 0xF3B08000) { return INSTRUCTION_TYPE.UNDEFINE;       }
-    if (((instruction & 0xF800D000)>>>0) == 0xF000C000) { return INSTRUCTION_TYPE.BLX_THUMB32;    }
-    if (((instruction & 0xF800D000)>>>0) == 0xF000D000) { return INSTRUCTION_TYPE.BL_THUMB32;     }
-    if (((instruction & 0xF800D000)>>>0) == 0xF0008000) { return INSTRUCTION_TYPE.B1_THUMB32;     }
-    if (((instruction & 0xF800D000)>>>0) == 0xF0009000) { return INSTRUCTION_TYPE.B2_THUMB32;     }
-    if (((instruction & 0xFBFF8000)>>>0) == 0xF2AF0000) { return INSTRUCTION_TYPE.ADR1_THUMB32;   }
-    if (((instruction & 0xFBFF8000)>>>0) == 0xF20F0000) { return INSTRUCTION_TYPE.ADR2_THUMB32;   }
-    if (((instruction & 0xFF7F0000)>>>0) == 0xF85F0000) { return INSTRUCTION_TYPE.LDR_THUMB32;    }
-    if (((instruction & 0xFFFF00F0)>>>0) == 0xE8DF0000) { return INSTRUCTION_TYPE.TBB_THUMB32;    }
-    if (((instruction & 0xFFFF00F0)>>>0) == 0xE8DF0010) { return INSTRUCTION_TYPE.TBH_THUMB32;    }
+    let p = ptr(instruction);
+    if (p.and(0xFFF0D000).compare(0xF3B08000)==0) return INSTRUCTION_TYPE.UNDEFINE;   
+    if (p.and(0xF800D000).compare(0xF000C000)==0) return INSTRUCTION_TYPE.BLX_THUMB32;
+    if (p.and(0xF800D000).compare(0xF000D000)==0) return INSTRUCTION_TYPE.BL_THUMB32; 
+    if (p.and(0xF800D000).compare(0xF0008000)==0) return INSTRUCTION_TYPE.B1_THUMB32; 
+    if (p.and(0xF800D000).compare(0xF0009000)==0) return INSTRUCTION_TYPE.B2_THUMB32; 
+    if (p.and(0xFBFF8000).compare(0xF2AF0000)==0) return INSTRUCTION_TYPE.ADR1_THUMB32;
+    if (p.and(0xFBFF8000).compare(0xF20F0000)==0) return INSTRUCTION_TYPE.ADR2_THUMB32;
+    if (p.and(0xFF7F0000).compare(0xF85F0000)==0) return INSTRUCTION_TYPE.LDR_THUMB32;
+    if (p.and(0xFFFF00F0).compare(0xE8DF0000)==0) return INSTRUCTION_TYPE.TBB_THUMB32;
+    if (p.and(0xFFFF00F0).compare(0xE8DF0010)==0) return INSTRUCTION_TYPE.TBH_THUMB32;
     return INSTRUCTION_TYPE.UNDEFINE;
 }
 
 const getTypeInArm = (instruction:number):INSTRUCTION_TYPE =>{
-    if (((instruction & 0xFE000000)>>>0) == 0xFA000000) { return   INSTRUCTION_TYPE.BLX_ARM;   }
-    if (((instruction & 0x0F000000)>>>0) == 0x0B000000) { return   INSTRUCTION_TYPE.BL_ARM;    }
-    if (((instruction & 0x0F000000)>>>0) == 0x0A000000) { return   INSTRUCTION_TYPE.B_ARM;     }
-    if (((instruction & 0x0FF000FF)>>>0) == 0x0120001F) { return   INSTRUCTION_TYPE.BX_ARM;    }
-    if (((instruction & 0x0FEF0010)>>>0) == 0x008F0000) { return   INSTRUCTION_TYPE.ADD_ARM;   }
-    if (((instruction & 0x0FFF0000)>>>0) == 0x028F0000) { return   INSTRUCTION_TYPE.ADR1_ARM;  }
-    if (((instruction & 0x0FFF0000)>>>0) == 0x024F0000) { return   INSTRUCTION_TYPE.ADR2_ARM;  }
-    if (((instruction & 0x0E5F0000)>>>0) == 0x041F0000) { return   INSTRUCTION_TYPE.LDR_ARM;   }
-    if (((instruction & 0x0FE00FFF)>>>0) == 0x01A0000F) { return   INSTRUCTION_TYPE.MOV_ARM;   }
+    let p = ptr(instruction);
+    if (p.and(0xFE000000).compare(0xFA000000)==0)   return   INSTRUCTION_TYPE.BLX_ARM;  
+    if (p.and(0x0F000000).compare(0x0B000000)==0)   return   INSTRUCTION_TYPE.BL_ARM;   
+    if (p.and(0x0F000000).compare(0x0A000000)==0)   return   INSTRUCTION_TYPE.B_ARM;    
+    if (p.and(0x0FF000FF).compare(0x0120001F)==0)   return   INSTRUCTION_TYPE.BX_ARM;   
+    if (p.and(0x0FEF0010).compare(0x008F0000)==0)   return   INSTRUCTION_TYPE.ADD_ARM;  
+    if (p.and(0x0FFF0000).compare(0x028F0000)==0)   return   INSTRUCTION_TYPE.ADR1_ARM; 
+    if (p.and(0x0FFF0000).compare(0x024F0000)==0)   return   INSTRUCTION_TYPE.ADR2_ARM; 
+    if (p.and(0x0E5F0000).compare(0x041F0000)==0)   return   INSTRUCTION_TYPE.LDR_ARM;  
+    if (p.and(0x0FE00FFF).compare(0x01A0000F)==0)   return   INSTRUCTION_TYPE.MOV_ARM;  
     return INSTRUCTION_TYPE.UNDEFINE;
 }
 
 const relocateInstructionInThumb16=(pc:NativePointer, instruction:number, trampoline_instructions:NativePointer):number=> {
     let offset;
-    
     const type = getTypeInThumb16(instruction);
-    console.log(`in reclocateInstructionInThumb16 type ${type}`)
     if (    type == INSTRUCTION_TYPE.B1_THUMB16 
         ||  type == INSTRUCTION_TYPE.B2_THUMB16 
         ||  type == INSTRUCTION_TYPE.BX_THUMB16 ) {
@@ -123,9 +122,7 @@ const relocateInstructionInThumb16=(pc:NativePointer, instruction:number, trampo
             trampoline_instructions.writeU16(0xBF00); // nop
             idx ++ ;
         }
-        console.log(`in reclocateInstructionInThumb16 type ${type} b1, b2, bx `)
         if (type == INSTRUCTION_TYPE.B1_THUMB16) {
-            console.log(`in reclocateInstructionInThumb16 type ${type} b1`)
             let x = (instruction & 0xFF) << 1;
             let top_bit = x >> 8;
             let imm32 = top_bit ? (x | (0xFFFFFFFF << 8)) : x;
@@ -134,14 +131,12 @@ const relocateInstructionInThumb16=(pc:NativePointer, instruction:number, trampo
             trampoline_instructions.add(idx*2).writeU16(0xE003              ); idx++; // B PC, #6
         }
         else if (type == INSTRUCTION_TYPE.B2_THUMB16) {
-            console.log(`in reclocateInstructionInThumb16 type ${type} b2`)
             let x = (instruction & 0x7FF) << 1;
             let top_bit = x >> 11;
             let imm32 = top_bit ? (x | (0xFFFFFFFF << 11)) : x;
             value = pc.add(imm32);
         }
         else if (type == INSTRUCTION_TYPE.BX_THUMB16) {
-            console.log(`in reclocateInstructionInThumb16 type ${type} bx`)
             value = pc;
         }
         else{
@@ -153,7 +148,6 @@ const relocateInstructionInThumb16=(pc:NativePointer, instruction:number, trampo
         trampoline_instructions.add(idx*2).writeU16(value.and( 0xFFFF).toUInt32());  idx++;
         trampoline_instructions.add(idx*2).writeU16(value.shl(16).toUInt32());       idx++;
         offset = idx;
-        console.log(`in reclocateInstructionInThumb16 type ${type} wrote bytes ${idx*2}`)
     }
     else if (type == INSTRUCTION_TYPE.ADD_THUMB16) {
         let r;
@@ -225,7 +219,6 @@ const relocateInstructionInThumb32 = (pc:NativePointer, high_instruction:number,
                 
     let instruction = (high_instruction << 16) | low_instruction;
     let type = getTypeInThumb32(instruction);
-    console.log(`in reclocateInstructionInThumb32 type ${type}`, type, INSTRUCTION_TYPE.ADR1_ARM)
     let idx = 0;//
     // pad nop for align 4
     if(trampoline_instructions.and(3).toUInt32()!=0){
@@ -237,8 +230,6 @@ const relocateInstructionInThumb32 = (pc:NativePointer, high_instruction:number,
         ||  type == INSTRUCTION_TYPE.B1_THUMB32 
         ||  type == INSTRUCTION_TYPE.B2_THUMB32 ) {
         let value;
-    console.log(`in reclocateInstructionInThumb32 type ${type} blx bl b1 b2`)
-
         let j1 = (low_instruction & 0x2000) >>> 13;
         let j2 = (low_instruction & 0x800)  >>> 11;
         let s  = (high_instruction & 0x400) >>> 10;
@@ -247,37 +238,31 @@ const relocateInstructionInThumb32 = (pc:NativePointer, high_instruction:number,
 
         if (    type == INSTRUCTION_TYPE.BLX_THUMB32 
             ||  type == INSTRUCTION_TYPE.BL_THUMB32) {
-    console.log(`in reclocateInstructionInThumb32 type ${type} blx bl `)
             trampoline_instructions.add(2*idx).writeU16(0xF20F); idx++;
             trampoline_instructions.add(2*idx).writeU16(0x0E09); idx++;   // ADD.W LR, PC, #9
         }
         else if (type == INSTRUCTION_TYPE.B1_THUMB32) {
-    console.log(`in reclocateInstructionInThumb32 type ${type} b1 `)
             trampoline_instructions.add(2*idx).writeU16(0xD000 | ((high_instruction & 0x3C0) << 2)  ); idx++;
             trampoline_instructions.add(2*idx).writeU16(0xE003                                      ); idx++;   // B PC, #6
         }
         trampoline_instructions.add(2*idx).writeU16(0xF8DF); idx++; 
         trampoline_instructions.add(2*idx).writeU16(0xF000); idx++; // LDR.W PC, [PC]
         if (type == INSTRUCTION_TYPE.BLX_THUMB32) { 
-    console.log(`in reclocateInstructionInThumb32 type ${type} blx `)
             let x = (s << 24) | (i1 << 23) | (i2 << 22) | ((high_instruction & 0x3FF) << 12) | ((low_instruction & 0x7FE) << 1);
             let imm32 = s ? (x | (0xFFFFFFFF << 25)) : x;
             value = ALIGN_PC(pc) .add(imm32);
         }
         else if (type == INSTRUCTION_TYPE.BL_THUMB32) {
-    console.log(`in reclocateInstructionInThumb32 type ${type} bl `)
             let x = (s << 24) | (i1 << 23) | (i2 << 22) | ((high_instruction & 0x3FF) << 12) | ((low_instruction & 0x7FF) << 1);
             let imm32 = s ? (x | (0xFFFFFFFF << 25)) : x;
             value = ALIGN_PC(pc) .add( imm32 + 1);
         }
         else if (type == INSTRUCTION_TYPE.B1_THUMB32) {
-    console.log(`in reclocateInstructionInThumb32 type ${type} b1 `)
             let x = (s << 20) | (j2 << 19) | (j1 << 18) | ((high_instruction & 0x3F) << 12) | ((low_instruction & 0x7FF) << 1);
             let imm32 = s ? (x | (0xFFFFFFFF << 21)) : x;
             value = ALIGN_PC(pc) .add( imm32 + 1);
         }
         else if (type == INSTRUCTION_TYPE.B2_THUMB32) {
-    console.log(`in reclocateInstructionInThumb32 type ${type} b2 `)
             let x = (s << 24) | (i1 << 23) | (i2 << 22) | ((high_instruction & 0x3FF) << 12) | ((low_instruction & 0x7FF) << 1);
             let imm32 = s ? (x | (0xFFFFFFFF << 25)) : x;
             value = ALIGN_PC(pc) .add( imm32 + 1);
@@ -287,7 +272,6 @@ const relocateInstructionInThumb32 = (pc:NativePointer, high_instruction:number,
         }
         trampoline_instructions.add(2*idx).writePointer(value); idx+=2;
         offset = idx;
-    console.log(`in reclocateInstructionInThumb32 type ${type} end ${idx} wrote ${idx*2} bytes `)
     }
     else if (   type == INSTRUCTION_TYPE.ADR1_THUMB32 
             ||  type == INSTRUCTION_TYPE.ADR2_THUMB32 
@@ -313,18 +297,15 @@ const relocateInstructionInThumb32 = (pc:NativePointer, high_instruction:number,
         }
         else {
             let addr;
-            
             let is_add = ((high_instruction & 0x80) >> 7)!=0;
             r = low_instruction >> 12;
             let imm32 = low_instruction & 0xFFF;
-            
             if (is_add) {
                 addr = (ALIGN_PC(pc) .add( imm32));
             }
             else {
                 addr = (ALIGN_PC(pc) .sub( imm32));
             }
-            
             value = addr.readPointer();
         }
 
@@ -396,9 +377,7 @@ const relocateInstructionInArm = (target_addr:NativePointer, orig_instructions:N
     let trampoline_pos = 0;
     for (let orig_pos = 0; orig_pos < length ; orig_pos+=4) {
         let instruction = orig_instructions.add(orig_pos).readU32();
-        console.log('relocateInstructonInarm', ptr(instruction));
         let type = getTypeInArm(instruction);
-        console.log('relocateInstructonInarm', ptr(instruction), 'type', ptr(type), type, INSTRUCTION_TYPE.ADR1_ARM);
         if (    type == INSTRUCTION_TYPE.BLX_ARM 
             ||  type == INSTRUCTION_TYPE.BL_ARM 
             ||  type == INSTRUCTION_TYPE.B_ARM 
@@ -456,11 +435,9 @@ const relocateInstructionInArm = (target_addr:NativePointer, orig_instructions:N
                 ||  type == INSTRUCTION_TYPE.ADR2_ARM 
                 ||  type == INSTRUCTION_TYPE.LDR_ARM 
                 ||  type == INSTRUCTION_TYPE.MOV_ARM  ) {
+
             let value:NativePointer;
-            
             let r = (instruction & 0xF000) >>> 12;
-        console.log('relocateInstructonInarm', ptr(instruction), 'r',r);
-            
             if (    type == INSTRUCTION_TYPE.ADR1_ARM 
                 ||  type == INSTRUCTION_TYPE.ADR2_ARM 
                 ||  type == INSTRUCTION_TYPE.LDR_ARM  ) {
@@ -485,28 +462,21 @@ const relocateInstructionInArm = (target_addr:NativePointer, orig_instructions:N
                 else{
                     throw new Error('unhandle case')
                 }
-                console.log('relocateInstructonInarm', ptr(instruction), 'r',r, 'value', value);
             }
             else {
                 value = pc;
             }
                 
-console.log('+ relocateInstructonInarm write instructions');
             trampoline_instructions.add(4*trampoline_pos).writeU32(ptr(0xE51F0000).or(r << 12).toUInt32()   ); trampoline_pos++;// LDR Rr, [PC]
-console.log('+1 relocateInstructonInarm write instructions');
-            trampoline_instructions.add(4*trampoline_pos).writeU32(0xE28FF000                ); trampoline_pos++;// ADD PC, PC
-console.log('+2 relocateInstructonInarm write instructions');
-            trampoline_instructions.add(4*trampoline_pos).writePointer(value);                  trampoline_pos++;
-console.log('- relocateInstructonInarm write instructions');
+            trampoline_instructions.add(4*trampoline_pos).writeU32(0xE28FF000                               ); trampoline_pos++;// ADD PC, PC
+            trampoline_instructions.add(4*trampoline_pos).writePointer(value                                ); trampoline_pos++;
         }
         else {
-            trampoline_instructions.add(4*trampoline_pos).writeU32(instruction);                  trampoline_pos++;
+            trampoline_instructions.add(4*trampoline_pos).writeU32(instruction); trampoline_pos++;
         }
         pc = pc.add(4);
     }
     
-    //trampoline_instructions.add(4*trampoline_pos).writeU32(0xe51ff004   ); trampoline_pos++;    // LDR PC, [PC, #-4]
-    //trampoline_instructions.add(4*trampoline_pos).writePointer(lr       ); trampoline_pos++;
     return trampoline_pos*4;
 }
 
@@ -581,8 +551,6 @@ export class ArmInlineHooker extends InlineHooker{
         let woffset = 0;
         while(offset<sz){
             let inst = Instruction.parse(from.add(offset)) as ArmInstruction;
-            console.log(inst)
-            console.log(JSON.stringify(inst))
             let instbs = from.add(offset).readByteArray(inst.size);
             if(instbs==null) throw new Error(`can not read instruction bytes form ${from}`)
             let pc = from.add(offset).and(~1);
@@ -608,15 +576,11 @@ export class ArmInlineHooker extends InlineHooker{
                 woffset += relocateInstructionInThumb32(pc.add(4), pc.readU16(), pc.add(2).readU16(), to.add(woffset));
             }
             else{
-                dumpMemory(pc, inst.size)
                 throw new Error(`unhandle case when relocate thumb code`)
             }
-            //writer.putBytes(instbs);
             offset += inst.size;
         }
-        console.log(`thumb reloc write length ${woffset}`)
-        let orig_bytes = from.readByteArray(offset)
-        if(orig_bytes==null) throw new Error(`can not read original instruction bytes form ${from}`)
+        let orig_bytes = readMemoryArrayBuffer(from,offset);
         return [woffset, orig_bytes]
     }
 
@@ -635,7 +599,6 @@ export class ArmInlineHooker extends InlineHooker{
             let code = from ;
             const writer = new ArmWriter(code);
             if(this.canBranchDirectlyBetween(from, to)){
-                console.log("put b #imm in arm mode")
                 writer.putBImm(to);
                 writer.flush();
                 return writer.offset;
@@ -650,7 +613,6 @@ export class ArmInlineHooker extends InlineHooker{
             let code = from.and(~1);
             const writer = new ThumbWriter(code);
             if(this.canBranchDirectlyBetween(from,to)){
-                console.log(`thumb jump ${code} => ${to}`)
                 writer.putBImm(to.or(1))
                 writer.flush();
                 return writer.offset;

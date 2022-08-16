@@ -47,7 +47,7 @@ export class X64InlineHooker extends InlineHooker{
     }
 
     getJumpInstLen(from: NativePointer, to: NativePointer): number {
-        return 5; // alway jmp 
+        return 5; // alway long jmp 
     }
 
     relocCode(from: NativePointer, to: NativePointer, sz: number): [number, ArrayBuffer] {
@@ -66,7 +66,6 @@ export class X64InlineHooker extends InlineHooker{
             cnt ++ ;
         }
         woffset = writer.offset;
-        console.log(`thumb reloc write length ${woffset}`)
         let orig_bytes = readMemoryArrayBuffer(from, offset);
         return [woffset, orig_bytes]
     }
@@ -77,7 +76,6 @@ export class X64InlineHooker extends InlineHooker{
         writer.flush();
         return writer.offset;
     }
-
 }
 
 export let getRegs = (sp:NativePointer) =>{

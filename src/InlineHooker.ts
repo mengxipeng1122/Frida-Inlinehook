@@ -79,7 +79,7 @@ export abstract class InlineHooker
             origin_bytes    :   ArrayBuffer,
             hook_ptr        :   NativePointer,
             hook_fun_ptr    :   NativePointer,
-    }}= { };
+    }} = { };
 
     static hasHooked = (hook_ptr:NativePointer):boolean=>{
         return hook_ptr.toString() in InlineHooker.all_inline_hooks;

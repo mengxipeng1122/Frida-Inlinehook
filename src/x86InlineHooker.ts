@@ -1,7 +1,7 @@
 
 'use strict';
 
-import { dumpMemory, readMemoryArrayBuffer } from "../commutils";
+import { readMemoryArrayBuffer } from "../commutils";
 import { InlineHooker } from "./InlineHooker";
 
 export class X86InlineHooker extends InlineHooker{
