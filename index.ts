@@ -37,21 +37,26 @@ ${p} , bytes([ ${bs.join(',')} ])
 let testExeThumb = (moduleName:string)=>{
     let m = Process.getModuleByName(moduleName);
     let trampoline_ptr = m.base.add(exe_thumb.info.loads[0].virtual_size);
-    let hook_ptr = m.base.add(0x6df);
     const hook_fun_ptr  = new NativeCallback(function(para1:NativePointer, sp:NativePointer):number{
         console.log(`call hook_fun with ${sp} and ${para1}`)
         console.log('regs',  JSON.stringify(ArmInlineHooker.getRegs(sp)))
         return 1;
     },'int',['pointer','pointer']);
-    console.log('hook ptr', hook_ptr);
-    console.log('hook fun ptr', hook_fun_ptr);
-    inlineHookPatch(hook_ptr, hook_fun_ptr, hook_ptr, );
-    let patch = InlineHooker.all_inline_hooks[hook_ptr.toString()];
-    dumpMemoryToPyCode({
-        'hook'      : { p : patch.hook_ptr.and(~1),     sz: 0x20   },
-        'trampoline': { p : patch.trampoline_ptr,       sz: 0x100  },
-        'hook_fun'  : { p : patch.hook_fun_ptr,         sz: 0x20   },
-    })
+    {
+        let hook_ptr = m.base.add(0x6df);
+        inlineHookPatch(hook_ptr, hook_fun_ptr, hook_ptr, );
+    }
+    {
+        let hook_ptr = m.base.add(0x6ed);
+        inlineHookPatch(hook_ptr, hook_fun_ptr, hook_ptr, );
+    }
+    console.log(JSON.stringify(InlineHooker.all_inline_hooks))
+    //let patch = InlineHooker.all_inline_hooks[hook_ptr.toString()];
+    //dumpMemoryToPyCode({
+    //    'hook'      : { p : patch.hook_ptr.and(~1),     sz: 0x20   },
+    //    'trampoline': { p : patch.trampoline_ptr,       sz: 0x100  },
+    //    'hook_fun'  : { p : patch.hook_fun_ptr,         sz: 0x20   },
+    //})
 
 }
 
