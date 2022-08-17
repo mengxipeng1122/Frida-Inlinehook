@@ -16,21 +16,22 @@ from unicorn.arm64_const import *
 from unicorn.x86_const import *
 
 
+arch="arm64"
+
 patchInfos = {
 
     'hook' : (
-0xb3a9d6e0 , bytes([ 223,248,0,240,102,9,240,152,238,247,92,239,40,70,255,247,102,239,1,52,243,231,0,191,104,101,108,108,111,32,119,111 ])
+0x5e2362d914 , bytes([ 80,0,0,88,0,2,31,214,16,64,73,156,124,0,0,0,31,32,3,213,31,32,3,213,31,32,3,213,31,32,3,213 ])
     ),
 
     'trampoline' : (
-0xee98f000 , bytes([ 136,128,162,238,225,214,169,179,255,180,45,233,0,95,239,243,0,128,1,180,0,191,105,70,95,248,24,0,95,248,32,64,160,71,1,188,128,243,0,136,189,232,0,95,255,188,33,70,0,191,0,191,15,242,9,14,223,248,0,240,176,213,169,179,48,70,0,191,223,248,0,240,233,214,169,179,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ])
+0x7c9c494000 , bytes([ 184,160,81,156,124,0,0,0,20,217,98,35,94,0,0,0,224,7,191,169,226,15,191,169,228,23,191,169,230,31,191,169,232,39,191,169,234,47,191,169,236,55,191,169,238,63,191,169,240,71,191,169,242,79,191,169,244,87,191,169,246,95,191,169,248,103,191,169,250,111,191,169,252,119,191,169,15,66,59,213,254,63,191,169,225,3,0,145,128,253,255,88,41,253,255,88,32,1,63,214,254,63,193,168,15,66,27,213,252,119,193,168,250,111,193,168,248,103,193,168,246,95,193,168,244,87,193,168,242,79,193,168,240,71,193,168,238,63,193,168,236,55,193,168,234,47,193,168,232,39,193,168,230,31,193,168,228,23,193,168,226,15,193,168,224,7,193,168,81,0,0,88,3,0,0,20,0,216,98,131,94,0,0,0,32,2,63,214,0,72,136,82,224,1,160,114,31,32,3,213,80,0,0,88,0,2,31,214,36,217,98,35,94,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ])
     ),
 
     'hook_fun' : (
-0xeea28088 , bytes([ 8,192,79,226,4,240,31,229,192,194,176,237,124,20,11,237,137,172,186,237,96,20,11,237,0,0,0,0,57,15,0,0 ])
+0x7c9c51a0b8 , bytes([ 144,0,0,88,241,255,255,16,0,2,31,214,0,0,0,0,64,209,217,154,124,0,0,0,112,52,29,154,124,0,0,0 ])
     ),
 }
-
 
 infos =  {
 "x86"    : { "archmode" : ( CS_ARCH_X86, CS_MODE_32, UC_ARCH_X86, UC_MODE_32, KS_ARCH_X86, KS_MODE_32,), 
@@ -41,8 +42,14 @@ infos =  {
                 'retcode':'ret',
             },
 "arm64"  : { "archmode" : ( CS_ARCH_ARM64, CS_MODE_ARM, UC_ARCH_ARM64, UC_MODE_ARM, KS_ARCH_ARM64, KS_MODE_LITTLE_ENDIAN,), 
-                'retcode':'bx lr',
+                'retcode':'RET',
+                'pc_reg': UC_ARM64_REG_PC,
                 'sp_reg' :  UC_ARM64_REG_SP,
+                'count':52,
+                'inspect_regs':{
+                    'x11': UC_ARM64_REG_X11,
+                    'x17': UC_ARM64_REG_X17,
+                },
             },
 "arm"    : { "archmode" : ( CS_ARCH_ARM, CS_MODE_ARM, UC_ARCH_ARM, UC_MODE_ARM, KS_ARCH_ARM, KS_MODE_ARM,), 
                 'retcode'   :'bx lr',
@@ -59,7 +66,6 @@ infos =  {
 
 
 def main():
-    arch="thumb"
 
     cs_arch, cs_mode, uc_arch, uc_mode, ks_arch, ks_mode = infos[arch]['archmode'];
     md = Cs(cs_arch, cs_mode)
@@ -87,30 +93,49 @@ def main():
     # for (addr, size, mnemonic, op_str) in md.disasm_lite(bs, address):
     #     print("0x%x:\t%s\t%s" %(addr, mnemonic, op_str))
 
-    # path 
+    if True:
+        bs = bytes([ 0x10, 0x00, 0x00, 0xd0, 0x00, 0x02, 0x1f, 0xd6, 0xb9, 0xff, 0xff, 0x97, 0xe0, 0x03, 0x13, 0xaa])
+        address=0x5ac1e3d904
+        for (addr, size, mnemonic, op_str) in md.disasm_lite(bs, address):
+            print("0x%x:\t%s\t%s" %(addr, mnemonic, op_str))
+        
+
     if False:
-        para1, hook_fun_ptr = struct.unpack('II', patchInfos['trampoline'][1][:8])
+        bs = struct.pack('IIIII', 0x97ffffbb, 0x58000051, 0x14000003, 0xD63F0220, 0xD61F0220);
+        hexdump(bs)
+        address = 0x62be6eb914
+        for (addr, size, mnemonic, op_str) in md.disasm_lite(bs, address):
+            print("0x%x:\t%s\t%s" %(addr, mnemonic, op_str))
+        codes = [
+            'bl	#0x62be6eb800'           ,
+            'ldr	x15, #0x62be6eb920'  ,
+            'b	#0x62be6eb928'           ,
+            'blr	x15'                 ,
+            'br	x15'                     ,
+            ]
+        for t,c in enumerate(codes):
+            encoding, count = ks.asm(c, address+4*t);
+            print(c);
+            hexdump(bytes(encoding));
+        raise Exception(f'exit')
+
+
+        
+    # patch 
+    if True:
+        addr=0x5e8362d800
+        ADDR0 = math.floor(addr/1024)*1024
+        mu.mem_map(ADDR0, 1024);
+        c = infos[arch]['retcode']
+        print(c)
+        encoding, count = ks.asm(c);
+        mu.mem_write(addr, bytes(encoding));
+
+    if False:
+        addr=0x5ac1e3d904
         CODE = [
-    "        pushf                          ",
-    "        push eax                       ",
-    "        push ecx                       ",
-    "        push edx                       ",
-    "        push ebx                       ",
-    "        push ebp                       ",
-    "        push esi                       ",
-    "        push edi                       ",
-   f"        push {hex(para1)}              ",
-    "        push esp                       ",
-   f"        call {hex(hook_fun_ptr)}       ",
-    "        add esp, 8                     ",
-    "        pop edi                        ",
-    "        pop esi                        ",
-    "        pop ebp                        ",
-    "        pop ebx                        ",
-    "        pop edx                        ",
-    "        pop ecx                        ",
-    "        pop eax                        ",
-    "        popf                           ",
+    f"        adrp	x16, #{hex(addr+0x08)}              ",
+    f"        br   x16              ",
         ]
         for c in CODE:
             print(c)
@@ -118,7 +143,7 @@ def main():
             hexdump(bytes(encoding))
     
         encoding, count = ks.asm('\n'.join(CODE));
-        mu.mem_write(patchInfos['trampoline'][0]+8, bytes(encoding))
+        mu.mem_write(addr, bytes(encoding))
     
     code =infos[arch]['retcode'];
     encoding, count = ks.asm(code)
@@ -180,13 +205,19 @@ def main():
     else:
         ADDRESS = patchInfos['hook'][0]
     try:
-        mu.emu_start(ADDRESS, -1, count=26);
+        count=26;
+        if 'count' in infos[arch]:
+            count=infos[arch]['count']
+        mu.emu_start(ADDRESS, -1, count=count);
     except:
         print('error')
         import traceback
         traceback.print_exc()
     finally:
         print(f'pc  : {hex(mu.reg_read(infos[arch]["pc_reg"]))}');
+        if 'inspect_regs' in infos[arch]:
+            for k, v in infos[arch]['inspect_regs'].items():
+                print(f'{k}  : {hex(mu.reg_read(v))}');
 
 
 

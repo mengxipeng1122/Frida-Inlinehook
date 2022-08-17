@@ -11,16 +11,16 @@ import * as exe_thumb   from './soinfos/exe_thumb'
 import * as exe_arm64   from './soinfos/exe_arm64'
 import * as exe_x86     from './soinfos/exe_x86'
 import * as exe_x64     from './soinfos/exe_x64'
-import { readMemoryArrayBuffer } from './commutils';
+import { dumpMemory, readMemoryArrayBuffer } from './commutils';
 
          
 const dumpMemoryToPyCode = (mem:{[key:string]:{ p:NativePointer, sz:number}})=>{
     let code = ``;
     code += `patchInfos = { \n`
     Object.keys(mem).forEach(k=>{
-        let v = mem[k];
-        let p = v['p']
-        let sz = v['sz']
+        let v   = mem[k];
+        let p   = v.p
+        let sz  = v.sz
         let bs = new Uint8Array(readMemoryArrayBuffer(p,sz))
         code += `
     '${k}' : (
@@ -45,18 +45,18 @@ let testExeThumb = (moduleName:string)=>{
     {
         let hook_ptr = m.base.add(0x6df);
         inlineHookPatch(hook_ptr, hook_fun_ptr, hook_ptr, );
+        let patch = InlineHooker.all_inline_hooks[hook_ptr.toString()];
+        dumpMemoryToPyCode({
+            'hook'      : { p : patch.hook_ptr.and(~1),     sz: 0x20   },
+            'trampoline': { p : patch.trampoline_ptr,       sz: 0x100  },
+            'hook_fun'  : { p : patch.hook_fun_ptr,         sz: 0x20   },
+        })
     }
     {
         let hook_ptr = m.base.add(0x6ed);
         inlineHookPatch(hook_ptr, hook_fun_ptr, hook_ptr, );
     }
     console.log(JSON.stringify(InlineHooker.all_inline_hooks))
-    //let patch = InlineHooker.all_inline_hooks[hook_ptr.toString()];
-    //dumpMemoryToPyCode({
-    //    'hook'      : { p : patch.hook_ptr.and(~1),     sz: 0x20   },
-    //    'trampoline': { p : patch.trampoline_ptr,       sz: 0x100  },
-    //    'hook_fun'  : { p : patch.hook_fun_ptr,         sz: 0x20   },
-    //})
 
 }
 
@@ -69,19 +69,46 @@ let testExeArm =  (moduleName:string)=>{
         console.log('regs',  JSON.stringify(ArmInlineHooker.getRegs(sp)))
         return 1;
     },'int',['pointer','pointer']);
-    inlineHookPatch(hook_ptr, hook_fun_ptr, hook_ptr,trampoline_ptr, );
+    inlineHookPatch(hook_ptr, hook_fun_ptr, hook_ptr );
+    let patch = InlineHooker.all_inline_hooks[hook_ptr.toString()];
+    dumpMemoryToPyCode({
+        'hook'      : { p : patch.hook_ptr,              sz: 0x20   },
+        'trampoline': { p : patch.trampoline_ptr,       sz: 0x100  },
+        'hook_fun'  : { p : patch.hook_fun_ptr,         sz: 0x20   },
+    })
 }
 
 let testExeArm64 = (moduleName:string)=>{
     let m = Process.getModuleByName(moduleName);
     let trampoline_ptr = m.base.add(exe_arm64.info.loads[0].virtual_size);
     let hook_ptr = m.base.add(0x904);
+    if(false) {
+        dumpMemory(hook_ptr)
+        Interceptor.attach(hook_ptr,{
+            onEnter:function(args) {
+                console.log(args[0])
+            }
+        })
+        Thread.sleep(.1)
+        dumpMemory(hook_ptr)
+    }
+    if(true){
+        let funname = 'fflush'
+        let funp = Module.getExportByName(null, funname);
+        console.log(`${funname} : ${funp}`)
+    }
     const hook_fun_ptr  = new NativeCallback(function(para1:NativePointer, sp:NativePointer):number{
         console.log(`call hook_fun with ${sp} and ${para1}`)
         console.log('regs',  JSON.stringify(Arm64InlineHooker.getRegs(sp)))
         return 1;
     },'int',['pointer','pointer']);
-    inlineHookPatch(hook_ptr, hook_fun_ptr, hook_ptr, trampoline_ptr, );
+    inlineHookPatch(hook_ptr, hook_fun_ptr, hook_ptr );
+    let patch = InlineHooker.all_inline_hooks[hook_ptr.toString()];
+    dumpMemoryToPyCode({
+        'hook'      : { p : patch.hook_ptr,             sz: 0x20   },
+        'trampoline': { p : patch.trampoline_ptr,       sz: 0x100  },
+        'hook_fun'  : { p : patch.hook_fun_ptr,         sz: 0x20   },
+    })
 }
 
 let testExeX86 = (moduleName:string)=>{
@@ -94,7 +121,7 @@ let testExeX86 = (moduleName:string)=>{
         console.log('regs',  JSON.stringify(X86InlineHooker.getRegs(sp)))
         return 1;
     },'int',['pointer','pointer'],'fastcall'); // use fastcall
-    inlineHookPatch( hook_ptr, hook_fun_ptr, hook_ptr, trampoline_ptr);
+    inlineHookPatch(hook_ptr, hook_fun_ptr, hook_ptr );
 }
 
 let testExeX64 = (moduleName:string)=>{
@@ -107,17 +134,19 @@ let testExeX64 = (moduleName:string)=>{
         console.log('regs',  JSON.stringify(X64InlineHooker.getRegs(sp)))
         return 1;
     },'int',['pointer','pointer']);
-    inlineHookPatch( hook_ptr, hook_fun_ptr, hook_ptr, trampoline_ptr);
+    inlineHookPatch(hook_ptr, hook_fun_ptr, hook_ptr );
 }
 
 const test = ()=>{
     // replace printf function to print more information
-    let printf = new NativeFunction(Module.getExportByName(null,'printf'), 'int',['pointer']);
-    Interceptor.replace(printf, new NativeCallback(function(fmt:NativePointer, i:number ){
-        let s = fmt.readUtf8String();
-        console.log(`call printf with ${fmt} ${s} ${i}`);
-        return 0;
-    },'int', ['pointer','int']))
+    if(false){
+        let printf = new NativeFunction(Module.getExportByName(null,'printf'), 'int',['pointer']);
+        Interceptor.replace(printf, new NativeCallback(function(fmt:NativePointer, i:number ){
+            let s = fmt.readUtf8String();
+            console.log(`call printf with ${fmt} ${s} ${i}`);
+            return 0;
+        },'int', ['pointer','int']))
+    }
 
     let testFunMap : {[key:string]:
         {

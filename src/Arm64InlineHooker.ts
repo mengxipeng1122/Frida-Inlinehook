@@ -10,7 +10,10 @@ import { InlineHooker } from "./InlineHooker";
 
 //52 #define SH_UTIL_GET_BITS_32(n, high, low) ((uint32_t)((n) << (31u - (high))) >> (31u - (high) + (low)))
 let SH_UTIL_GET_BITS_32=(n:number, high:number, low:number):number=>{
-    return    ((n) << (31 - (high))) >> (31 - (high) + (low));
+    let p ;
+    p = ptr(n>>>0);
+    p = p .shl(31-high) .and(0xffffffff) .shr(31-high+low);
+    return p.toUInt32()
 }
 //#define SH_UTIL_GET_BITS_64(n, high, low) ((uint64_t)((n) << (63u - (high))) >> (63u - (high) + (low)))
 let SH_UTIL_GET_BITS_64=(n:number, high:number, low:number):UInt64=>{
@@ -22,23 +25,24 @@ let SH_UTIL_GET_BITS_64=(n:number, high:number, low:number):UInt64=>{
 // 53 #define SH_UTIL_GET_BIT_64(n, idx)                ((uint64_t)((n) << (63u - (idx))) >> 63u)
 let SH_UTIL_GET_BIT_64=(n:number|UInt64, idx:number):number=>{
     let ret = new UInt64(n);
-    ret.shl(63-idx);
-    ret.shr(63);
-    return ret.or(1).toNumber();
+    ret = ret.shl(63-idx);
+    ret = ret.shr(63);
+    return ret.and(1).toNumber();
 }
 
 //46 #define SH_UTIL_SIGN_EXTEND_64(n, len) \
 //47     ((SH_UTIL_GET_BIT_64(n, len - 1) > 0) ? ((n) | (0xFFFFFFFFFFFFFFFF << (len))) : n)
 let SH_UTIL_SIGN_EXTEND_64=(n:UInt64|number, len:number):UInt64=>{
     if(typeof n =='number'){ n=new UInt64(n); }
-    let bit64 = SH_UTIL_GET_BIT_64(n, len);
+    let bit64 = SH_UTIL_GET_BIT_64(n, len-1);
     if(bit64>0){
         let ret=n; 
         let mask = new UInt64(0xFFFFFFFFFFFFFFFF);
-        ret.or(mask.shl(len));
+        ret = ret.or(mask.shl(len));
         return ret;
     }
-    else {return n;
+    else {
+        return n;
     }
 }
 
@@ -333,6 +337,12 @@ export class Arm64InlineHooker extends InlineHooker{
             from.add(writer.offset).writePointer(to);
             return writer.offset+Process.pointerSize;
         }
+    }
+
+    getTrampolineCodeSize():number{
+        let ret  = 0x100;
+        console.log(`call get trampoline code size ${ret}`)
+        return ret;
     }
 }
 

@@ -619,7 +619,7 @@ export class ArmInlineHooker extends InlineHooker{
                 return writer.offset;
             }
             else{
-                writer.putLdrRegRegOffset('pc','pc',0);
+                writer.putLdrRegRegOffset('pc','pc',-4);
                 writer.flush();
                 from.add(writer.offset).writePointer(to)
                 return writer.offset+Process.pointerSize;
