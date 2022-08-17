@@ -35,17 +35,16 @@ export class X86InlineHooker extends InlineHooker{
     }
 
     relocCode(from: NativePointer, to: NativePointer, sz: number): [number, ArrayBuffer] {
-        let offset = 0;
         let woffset = 0;
         const writer = new X86Writer(to);
         const relocator = new X86Relocator(from,writer);
-        const max_cnt=10;
+        const max_cnt=20;
         let cnt = 0;
-        while(cnt<max_cnt && offset<sz){
-            let inst = relocator.readOne();
-            console.log(JSON.stringify(inst))
+        let offset;
+        while((offset= relocator.readOne())<sz){
+            if(cnt>=max_cnt) break;
+            console.log(JSON.stringify(relocator.input))
             if(relocator.input==null) throw new Error('input in relocator is null')
-            offset += relocator.input.size;
             relocator.writeOne();
             cnt ++ ;
         }
@@ -60,7 +59,6 @@ export class X86InlineHooker extends InlineHooker{
         writer.flush();
         return writer.offset;
     }
-
 }
 
 export let getRegs = (sp:NativePointer) =>{

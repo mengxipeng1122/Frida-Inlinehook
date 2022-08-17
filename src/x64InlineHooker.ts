@@ -47,21 +47,25 @@ export class X64InlineHooker extends InlineHooker{
     }
 
     getJumpInstLen(from: NativePointer, to: NativePointer): number {
-        return 5; // alway long jmp 
+        let distance = to.sub(from.add(5));
+        const G_MININT32 =( -2147483648); 
+        const G_MAXINT32 =(  2147483647);
+        if (distance.compare(G_MININT32)>=0 && distance.compare(G_MAXINT32)<0) return 5;
+        else return 0x10;
     }
 
     relocCode(from: NativePointer, to: NativePointer, sz: number): [number, ArrayBuffer] {
-        let offset = 0;
+        //TODO: warning,  X86relocator does handle long call correctly.
         let woffset = 0;
         const writer = new X86Writer(to);
         const relocator = new X86Relocator(from,writer);
-        const max_cnt=10;
+        const max_cnt=20;
         let cnt = 0;
-        while(cnt<max_cnt && offset<sz){
-            let inst = relocator.readOne();
-            console.log(JSON.stringify(inst))
+        let offset;
+        while((offset= relocator.readOne())<sz){
+            if(cnt>=max_cnt) break;
+            console.log(JSON.stringify(relocator.input))
             if(relocator.input==null) throw new Error('input in relocator is null')
-            offset += relocator.input.size;
             relocator.writeOne();
             cnt ++ ;
         }

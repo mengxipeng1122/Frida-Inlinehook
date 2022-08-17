@@ -128,18 +128,24 @@ let testExeX64 = (moduleName:string)=>{
     let m = Process.getModuleByName(moduleName);
     let seg = exe_x64.info.loads[1]
     let trampoline_ptr = m.base.add(seg.virtual_address).add(seg.virtual_size)
-    let hook_ptr = m.base.add(0x11da);
+    let hook_ptr = m.base.add(0x11fc);
     const hook_fun_ptr  = new NativeCallback(function(para1:NativePointer, sp:NativePointer):number{
         console.log(`call hook_fun with ${para1} and ${sp}`)
         console.log('regs',  JSON.stringify(X64InlineHooker.getRegs(sp)))
         return 1;
     },'int',['pointer','pointer']);
     inlineHookPatch(hook_ptr, hook_fun_ptr, hook_ptr );
+    let patch = InlineHooker.all_inline_hooks[hook_ptr.toString()];
+    dumpMemoryToPyCode({
+        'hook'      : { p : patch.hook_ptr,             sz: 0x20   },
+        'trampoline': { p : patch.trampoline_ptr,       sz: 0x100  },
+        'hook_fun'  : { p : patch.hook_fun_ptr,         sz: 0x20   },
+    })
 }
 
 const test = ()=>{
     // replace printf function to print more information
-    if(false){
+    if(true){
         let printf = new NativeFunction(Module.getExportByName(null,'printf'), 'int',['pointer']);
         Interceptor.replace(printf, new NativeCallback(function(fmt:NativePointer, i:number ){
             let s = fmt.readUtf8String();

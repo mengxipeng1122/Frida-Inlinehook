@@ -17,8 +17,8 @@ clean:
 
 
 exe_x86:testexe.cpp
-	$(CC) -o $@ $^ $(LDFLAGS) $(CXXFLAGS) -m32 
+	$(CC) -o $@ $^ $(LDFLAGS) $(CXXFLAGS) -m32  -D__X86__=1
 
 exe_x64:testexe.cpp
-	$(CC) -o $@ $^ $(LDFLAGS) $(CXXFLAGS) 
+	$(CC) -o $@ $^ $(LDFLAGS) $(CXXFLAGS) -D__X64__=1
 
