@@ -64,7 +64,6 @@ export class X64InlineHooker extends InlineHooker{
         let offset;
         while((offset= relocator.readOne())<sz){
             if(cnt>=max_cnt) break;
-            console.log(JSON.stringify(relocator.input))
             if(relocator.input==null) throw new Error('input in relocator is null')
             relocator.writeOne();
             cnt ++ ;

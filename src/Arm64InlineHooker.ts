@@ -18,8 +18,8 @@ let SH_UTIL_GET_BITS_32=(n:number, high:number, low:number):number=>{
 //#define SH_UTIL_GET_BITS_64(n, high, low) ((uint64_t)((n) << (63u - (high))) >> (63u - (high) + (low)))
 let SH_UTIL_GET_BITS_64=(n:number, high:number, low:number):UInt64=>{
     let ret = new UInt64(n);
-    ret.shl(64-high);
-    ret.shr(64-high+low)
+    ret = ret.shl(64-high);
+    ret = ret.shr(64-high+low)
     return ret;
 }
 // 53 #define SH_UTIL_GET_BIT_64(n, idx)                ((uint64_t)((n) << (63u - (idx))) >> 63u)
