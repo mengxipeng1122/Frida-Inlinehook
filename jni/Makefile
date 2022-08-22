@@ -1,6 +1,6 @@
 
 
-NDKPATH=/mnt/axly/hackings/android-utils/android-ndk-r15c/
+NDKPATH:=/mnt/axly/hackings/android-utils/android-ndk-r15c/
 
 all:exe_x86 exe_x64
 	${NDKPATH}/ndk-build V=1
