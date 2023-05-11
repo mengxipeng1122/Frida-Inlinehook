@@ -1,7 +1,15 @@
 
 'use strict';
 
-import {readMemoryArrayBuffer} from '../commutils'
+import { readArrayBufferFromMemory } from "./commutils";
+
+export type INLINE_HOOK_TYPE = {
+    origin_bytes    :   ArrayBuffer,
+    hook_ptr        :   NativePointer,
+    hook_fun_ptr    :   NativePointer,
+    trampoline_ptr  :   NativePointer,
+};
+
 
 export abstract class InlineHooker
 {
@@ -55,7 +63,7 @@ export abstract class InlineHooker
         return InlineHooker.max_trampoline_len;
     }
 
-    run():[number, ArrayBuffer]{
+    run():INLINE_HOOK_TYPE{
         if(InlineHooker.hasHooked(this.hook_ptr)) { throw new Error(`${this.hook_ptr} has hooked, does not rebook`) }
         let origin_bytes:ArrayBuffer=new ArrayBuffer(0)
         let offset = 0;
@@ -71,21 +79,22 @@ export abstract class InlineHooker
             offset += sz;
             // write jump back code 
             let origin_inst_len = origin_bytes.byteLength;
+            console.log('orgin_inst', sz, origin_inst_len)
             sz = this.putJumpCode(code.add(offset), this.hook_ptr.add(origin_inst_len)); offset += sz;
         });  
         // write jump code at hook_ptr
-        let jumpsz = this.getJumpInstLen(this.hook_ptr, trampolineCodeAddr);
-        origin_bytes = readMemoryArrayBuffer(this.hook_ptr, jumpsz)
+        let jumpsz = origin_bytes.byteLength;
         Memory.patchCode(this.hook_ptr, jumpsz, code=>{
             let sz = this.putJumpCode(code, trampolineCodeAddr)
         })
-        InlineHooker.all_inline_hooks[this.hook_ptr.toString()]= {
+        let newInlineHook =  {
             hook_ptr        : this.hook_ptr,
             hook_fun_ptr    : this.hook_fun_ptr,
             trampoline_ptr  : this.trampoline_ptr,
-            origin_bytes    : origin_bytes,
+            origin_bytes    ,
         }
-        return [offset, origin_bytes];
+        InlineHooker.all_inline_hooks[this.hook_ptr.toString()]=  newInlineHook;
+        return newInlineHook;
     }
 
     static trampoline_pages_info : {
@@ -119,12 +128,7 @@ export abstract class InlineHooker
         return p;
     }
 
-    static all_inline_hooks:{[key:string]:{
-            origin_bytes    :   ArrayBuffer,
-            hook_ptr        :   NativePointer,
-            hook_fun_ptr    :   NativePointer,
-            trampoline_ptr  :   NativePointer,
-    }} = { };
+    static all_inline_hooks:{[key:string]: INLINE_HOOK_TYPE} = {};
 
     static hasHooked = (hook_ptr:NativePointer):boolean=>{
         return hook_ptr.toString() in InlineHooker.all_inline_hooks;
@@ -142,5 +146,4 @@ export abstract class InlineHooker
             })
         })
     }
-
 };

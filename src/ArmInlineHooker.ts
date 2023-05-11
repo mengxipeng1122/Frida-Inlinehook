@@ -1,7 +1,7 @@
 
 'use strict';
 
-import { dumpMemory, readMemoryArrayBuffer } from "../commutils";
+import { readArrayBufferFromMemory } from './commutils'
 import { InlineHooker } from "./InlineHooker";
 
 const ALIGN_PC = (pc:NativePointer)=>(pc.and(0xFFFFFFFC));
@@ -575,7 +575,7 @@ export class ArmInlineHooker extends InlineHooker{
             }
             offset += inst.size;
         }
-        let orig_bytes = readMemoryArrayBuffer(from,offset);
+        let orig_bytes = readArrayBufferFromMemory(from,offset);
         return [woffset, orig_bytes]
     }
 

@@ -1,7 +1,7 @@
 
 'use strict';
 
-import { readMemoryArrayBuffer } from "../commutils";
+import { readArrayBufferFromMemory} from './commutils'
 import { InlineHooker } from "./InlineHooker";
 
 // https://developer.arm.com/documentation/ddi0487/latest
@@ -308,7 +308,7 @@ export class Arm64InlineHooker extends InlineHooker{
                 offset+= sh_a64_rewrite(oaddr,inst,iaddr);
                 ioff+=4;
         }
-        let origin_bytes = readMemoryArrayBuffer(from, sz)
+        let origin_bytes = readArrayBufferFromMemory(from, sz)
         return [offset, origin_bytes]
     }
     

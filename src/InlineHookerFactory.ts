@@ -5,6 +5,7 @@ import { ArmInlineHooker } from "./ArmInlineHooker";
 import { Arm64InlineHooker } from "./Arm64InlineHooker";
 import { X86InlineHooker } from "./x86InlineHooker";
 import { X64InlineHooker } from "./x64InlineHooker";
+import { INLINE_HOOK_TYPE } from "./InlineHooker";
 
 
 const inlineHookerFactory = (hook_ptr:NativePointer, hook_fun_ptr:NativePointer, para1: NativePointer, trampoline_ptr?:NativePointer, )=>{
@@ -30,8 +31,12 @@ const inlineHookerFactory = (hook_ptr:NativePointer, hook_fun_ptr:NativePointer,
     }
 }
 
-export const inlineHookPatch = (hook_ptr:NativePointer, hook_fun_ptr:NativePointer, para1:NativePointer, trampoline_ptr?:NativePointer, ):number => {
+export const inlineHookPatch = (
+        hook_ptr:NativePointer, 
+        hook_fun_ptr:NativePointer, 
+        para1:NativePointer, 
+        trampoline_ptr?:NativePointer, 
+    ):INLINE_HOOK_TYPE => {
     let inlineHooker = inlineHookerFactory(hook_ptr, hook_fun_ptr, para1, trampoline_ptr );
-    let [trampoline_len, origin_bytes] = inlineHooker.run();
-    return trampoline_len;
+    return inlineHooker.run();
 }

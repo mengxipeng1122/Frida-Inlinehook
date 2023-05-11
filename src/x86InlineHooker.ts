@@ -1,7 +1,7 @@
 
 'use strict';
 
-import { readMemoryArrayBuffer } from "../commutils";
+import { readArrayBufferFromMemory } from "./commutils";
 import { InlineHooker } from "./InlineHooker";
 
 export class X86InlineHooker extends InlineHooker{
@@ -40,16 +40,17 @@ export class X86InlineHooker extends InlineHooker{
         const relocator = new X86Relocator(from,writer);
         const max_cnt=20;
         let cnt = 0;
-        let offset;
-        while((offset= relocator.readOne())<sz){
-            if(cnt>=max_cnt) break;
-            console.log(JSON.stringify(relocator.input))
+        let offset=0;
+        console.log('relocCode', offset, sz)
+        for(let l=0;l<max_cnt;l++){
+            offset = relocator.readOne();
             if(relocator.input==null) throw new Error('input in relocator is null')
+            console.log(JSON.stringify(relocator.input))
             relocator.writeOne();
-            cnt ++ ;
+            if(offset>=sz)break;
         }
         woffset = writer.offset;
-        let orig_bytes = readMemoryArrayBuffer(from, offset);
+        let orig_bytes = readArrayBufferFromMemory(from, offset);
         return [woffset, orig_bytes]
     }
 
